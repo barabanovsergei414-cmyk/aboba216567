@@ -1,5 +1,4 @@
-
-      - name: Find source ZIP
+    - name: Find source ZIP
         id: source
         shell: bash
         run: |
@@ -18,7 +17,6 @@
 
           echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
           echo "Found: $ZIP_FILE"
-
       - name: Extract source ZIP
         shell: bash
         run: |
