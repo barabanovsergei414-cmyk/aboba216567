@@ -1,0 +1,40 @@
+
+      - name: Find source ZIP
+        id: source
+        shell: bash
+        run: |
+          ZIP_FILE="$(find . -type f \
+            -iname 'PyroRealism-NeoForge-1.21.1-Source-FIXED3.zip' \
+            -not -path './.git/*' \
+            -print -quit)"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::error::Source ZIP not found in repository."
+            echo "Upload the ZIP to GitHub, then run the workflow again."
+            echo "Available ZIP files:"
+            find . -type f -iname '*.zip' -not -path './.git/*'
+            exit 1
+          fi
+
+          echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "Found: $ZIP_FILE"
+
+      - name: Extract source ZIP
+        shell: bash
+        run: |
+          mkdir -p extracted
+          unzip -q "${{ steps.source.outputs.zip }}" -d extracted
+
+          PROJECT_FILE="$(find extracted -type f \
+            \( -name build.gradle -o -name build.gradle.kts \) \
+            -not -path '*/build/*' \
+            -print -quit)"
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "::error::No Gradle build file found inside ZIP."
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PROJECT_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Gradle project: $PROJECT_DIR"
