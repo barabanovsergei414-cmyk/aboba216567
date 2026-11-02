@@ -26,32 +26,54 @@ jobs:
           java-version: '21'
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y unzip findutils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip findutils
 
       - name: Find source ZIP
         id: source
         shell: bash
         run: |
-          ZIP_FILE="$(find . -type f -iname 'PyroRealism-NeoForge-1.21.1-Source-FIXED3.zip' -not -path './.git/*' -print -quit)"
+          ZIP_FILE="$(find . -type f \
+            -iname 'PyroRealism-NeoForge-1.21.1-GitHub-Build.zip' \
+            -not -path './.git/*' \
+            -print -quit)"
+
           if [ -z "$ZIP_FILE" ]; then
-            echo "::error::ZIP not found. Upload the source ZIP to this repository."
+            echo "::error::GitHub Build ZIP not found"
             find . -type f -iname '*.zip'
             exit 1
           fi
-          echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
-          echo "Found: $ZIP_FILE"
 
-      - name: Extract source ZIP
+          echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "Found archive: $ZIP_FILE"
+
+      - name: Extract ZIP
         shell: bash
         run: |
           mkdir -p extracted
           unzip -q "${{ steps.source.outputs.zip }}" -d extracted
-          PROJECT_FILE="$(find extracted -type f \( -name build.gradle -o -name build.gradle.kts \) -not -path '*/build/*' -print -quit)"
-          if [ -z "$PROJECT_FILE" ]; then
-            echo "::error::No Gradle build file found inside ZIP"
+
+          echo "ZIP contents:"
+          find extracted -maxdepth 4 -type f | head -200
+
+      - name: Find Gradle project
+        id: project
+        shell: bash
+        run: |
+          BUILD_FILE="$(find extracted -type f \
+            \( -name build.gradle -o -name build.gradle.kts \) \
+            -not -path '*/build/*' \
+            -print -quit)"
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "::error::No build.gradle or build.gradle.kts found in ZIP"
             exit 1
           fi
-          echo "PROJECT_DIR=$(dirname "$PROJECT_FILE")" >> "$GITHUB_ENV"
+
+          PROJECT_DIR="$(dirname "$BUILD_FILE")"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Gradle project: $PROJECT_DIR"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -59,12 +81,14 @@ jobs:
           gradle-version: '8.12.1'
 
       - name: Build mod
-        run: gradle -p "$PROJECT_DIR" build --no-daemon --stacktrace
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: gradle build --no-daemon --stacktrace
 
-      - name: Upload JAR
+      - name: Upload compiled JAR
         uses: actions/upload-artifact@v4
         with:
           name: PyroRealism-NeoForge-1.21.1
-          path: extracted/**/build/libs/*.jar
+          path: |
+            extracted/**/build/libs/*.jar
           if-no-files-found: error
           retention-days: 14
